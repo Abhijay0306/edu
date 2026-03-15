@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = process.env.NEXT_PUBLIC_API_URL || '';
 
 type Message = { role: 'user' | 'ai'; content: string };
 
