@@ -28,9 +28,10 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Registration failed'); return; }
       login(data.token, data.user);
+      setLoading(false);
       router.push('/profile');
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (err: any) {
+      setError(`Network error: ${err.message || 'Check your API URL and internet connection.'}`);
     } finally {
       setLoading(false);
     }
