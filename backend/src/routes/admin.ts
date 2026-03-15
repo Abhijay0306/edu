@@ -82,6 +82,23 @@ router.delete('/users/:id', requireSuperAdmin, async (req: Request, res: Respons
   }
 });
 
+// PATCH /api/admin/users/:id/role
+router.patch('/users/:id/role', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { role } = req.body;
+    if (!['STUDENT', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { role },
+    });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
 // GET /api/admin/stats
 router.get('/stats', requireSuperAdmin, async (req: Request, res: Response) => {
   const [userCount, uniCount, programCount, recCount] = await Promise.all([

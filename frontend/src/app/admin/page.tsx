@@ -5,9 +5,18 @@ import { useRouter } from 'next/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
-type University = { id: string; name: string; country: { name: string }; ranking: number | null; programs: any[]; description: string; website: string };
+type University = { 
+  id: string; 
+  name: string; 
+  country: { id: string; name: string }; 
+  ranking: number | null; 
+  programs: any[]; 
+  description: string; 
+  website: string 
+};
 type User = { id: string; email: string; name: string | null; role: string; createdAt: string };
 type Stats = { users: number; universities: number; programs: number; recommendations: number };
+type Country = { id: string; name: string };
 
 const tabs = ['Overview', 'Universities', 'Users'] as const;
 type Tab = typeof tabs[number];
@@ -18,10 +27,16 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('Overview');
   const [unis, setUnis] = useState<University[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
+  
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', description: '', website: '', ranking: '' });
+  
+  const [showAddUni, setShowAddUni] = useState(false);
+  const [addUniForm, setAddUniForm] = useState({ name: '', description: '', website: '', ranking: '', countryId: '' });
+  
   const [msg, setMsg] = useState('');
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -36,14 +51,20 @@ export default function AdminPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [statsRes, unisRes, usersRes] = await Promise.all([
+        const [statsRes, unisRes, usersRes, countriesRes] = await Promise.all([
           fetch(`${API}/api/admin/stats`, { headers }),
           fetch(`${API}/api/admin/universities`, { headers }),
           fetch(`${API}/api/admin/users`, { headers }),
+          fetch(`${API}/api/universities/search`, { headers }).then(r => r.json()).then(data => {
+            // Distinct list of countries from search
+            const unique = Array.from(new Set(data.map((u: any) => JSON.stringify(u.country)))).map((s: any) => JSON.parse(s));
+            return unique;
+          })
         ]);
         if (statsRes.ok) setStats(await statsRes.json());
         if (unisRes.ok) setUnis(await unisRes.json());
         if (usersRes.ok) setUsers(await usersRes.json());
+        setCountries(countriesRes as Country[]);
       } catch {}
       setLoading(false);
     };
@@ -64,6 +85,19 @@ export default function AdminPage() {
     setMsg('User deleted.');
   };
 
+  const toggleRole = async (userId: string, currentRole: string) => {
+    const nextRole = currentRole === 'ADMIN' ? 'STUDENT' : 'ADMIN';
+    const res = await fetch(`${API}/api/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ role: nextRole }),
+    });
+    if (res.ok) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: nextRole } : u));
+      setMsg(`User role updated to ${nextRole}.`);
+    }
+  };
+
   const saveEdit = async () => {
     if (!editId) return;
     const res = await fetch(`${API}/api/admin/universities/${editId}`, {
@@ -76,6 +110,26 @@ export default function AdminPage() {
       setUnis(prev => prev.map(u => u.id === editId ? { ...u, ...updated } : u));
       setEditId(null);
       setMsg('University updated.');
+    }
+  };
+
+  const addUniversity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addUniForm.countryId) { setMsg('Please select a country.'); return; }
+    const res = await fetch(`${API}/api/admin/universities`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ 
+        ...addUniForm, 
+        ranking: addUniForm.ranking ? parseInt(addUniForm.ranking) : null 
+      }),
+    });
+    if (res.ok) {
+      const newUni = await res.json();
+      setUnis(prev => [newUni, ...prev]);
+      setShowAddUni(false);
+      setAddUniForm({ name: '', description: '', website: '', ranking: '', countryId: '' });
+      setMsg('University added successfully!');
     }
   };
 
@@ -98,6 +152,11 @@ export default function AdminPage() {
             <span className="text-sm text-[#6B7280]">{user.email}</span>
           </div>
         </div>
+        {tab === 'Universities' && (
+          <button onClick={() => setShowAddUni(!showAddUni)} className="btn-primary text-sm px-4 h-9">
+            {showAddUni ? 'Cancel' : '+ Add University'}
+          </button>
+        )}
       </div>
 
       {msg && (
@@ -117,6 +176,46 @@ export default function AdminPage() {
       </div>
 
       {loading && <p className="text-[#6B7280] text-sm">Loading data...</p>}
+
+      {/* Add University Form */}
+      {tab === 'Universities' && showAddUni && (
+        <div className="card bg-[#F9FAFB] border-dashed border-2 border-[#D1D5DB]">
+          <h2 className="font-bold text-[#1F2937] mb-4">Add New University</h2>
+          <form onSubmit={addUniversity} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label">University Name</label>
+                <input required className="input" value={addUniForm.name} onChange={e => setAddUniForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g., University of Oxford" />
+              </div>
+              <div>
+                <label className="label">Country</label>
+                <select required className="input" value={addUniForm.countryId} onChange={e => setAddUniForm(p => ({ ...p, countryId: e.target.value }))}>
+                  <option value="">Select Country</option>
+                  {countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label">QS Ranking</label>
+                <input className="input" type="number" value={addUniForm.ranking} onChange={e => setAddUniForm(p => ({ ...p, ranking: e.target.value }))} placeholder="e.g., 5" />
+              </div>
+              <div>
+                <label className="label">Website</label>
+                <input className="input" value={addUniForm.website} onChange={e => setAddUniForm(p => ({ ...p, website: e.target.value }))} placeholder="https://..." />
+              </div>
+            </div>
+            <div>
+              <label className="label">Description</label>
+              <textarea className="input h-24 resize-none" value={addUniForm.description} onChange={e => setAddUniForm(p => ({ ...p, description: e.target.value }))} placeholder="Brief description..." />
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className="btn-primary text-sm px-6 h-10">Create University</button>
+              <button type="button" onClick={() => setShowAddUni(false)} className="btn-secondary text-sm px-6 h-10">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Overview */}
       {tab === 'Overview' && (
@@ -206,11 +305,18 @@ export default function AdminPage() {
                     <p className="text-xs text-[#6B7280]">{u.email}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`badge ${u.role === 'SUPER_ADMIN' ? 'badge-green' : u.role === 'ADMIN' ? 'badge-blue' : 'badge-purple'}`}>{u.role}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${u.role === 'SUPER_ADMIN' ? 'badge-green' : u.role === 'ADMIN' ? 'badge-blue' : 'badge-purple'}`}>{u.role}</span>
+                      {u.role !== 'SUPER_ADMIN' && u.id !== user.id && (
+                        <button onClick={() => toggleRole(u.id, u.role)} className="text-[10px] text-[#7B5CFF] hover:underline uppercase font-bold">
+                          {u.role === 'ADMIN' ? 'Demote' : 'Make Admin'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-[#6B7280] text-xs">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {u.id !== user.id && (
+                    {u.id !== user.id && u.role !== 'SUPER_ADMIN' && (
                       <button onClick={() => deleteUser(u.id)}
                         className="px-3 h-7 rounded-lg border border-red-200 text-red-500 text-xs hover:bg-red-50 transition-colors">
                         Delete
