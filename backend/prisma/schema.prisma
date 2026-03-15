@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  name            String?
+  passwordHash    String?
+  role            Role             @default(STUDENT)
+  profile         StudentProfile?
+  recommendations Recommendation[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model StudentProfile {
+  id               String     @id @default(uuid())
+  userId           String     @unique
+  gpa              Float?
+  preferredCountry String?
+  preferredProgram String?     // Masters, PhD etc.
+  courseField      String?     // CS, Engineering, Business etc.
+  courseType       String?     // Full-time, Part-time, Online
+  intakeYear       Int?
+  englishScore     Float?
+  budget           Float?
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model Country {
+  id           String       @id @default(uuid())
+  name         String       @unique
+  code         String       @unique
+  universities University[]
+  visaProcess  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model University {
+  id              String           @id @default(uuid())
+  name            String
+  countryId       String
+  country         Country          @relation(fields: [countryId], references: [id])
+  description     String?
+  website         String?
+  ranking         Int?
+  programs        Program[]
+  recommendations Recommendation[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Program {
+  id              String                 @id @default(uuid())
+  title           String
+  universityId    String
+  university      University             @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  level           String
+  field           String?
+  tuitionFee      Float
+  currency        String                 @default("USD")
+  durationYears   Float
+  language        String                 @default("English")
+  requirements    AdmissionRequirement[]
+  recommendations Recommendation[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model AdmissionRequirement {
+  id          String   @id @default(uuid())
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  minGpa      Float?
+  minEnglish  Float?
+  extraReqs   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Recommendation {
+  id           String     @id @default(uuid())
+  userId       String
+  universityId String
+  programId    String?
+  matchScore   Float
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university   University @relation(fields: [universityId], references: [id])
+  program      Program?   @relation(fields: [programId], references: [id])
+  createdAt    DateTime   @default(now())
+}
