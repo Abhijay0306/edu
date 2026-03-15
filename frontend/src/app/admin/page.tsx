@@ -50,22 +50,31 @@ export default function AdminPage() {
     if (!token || !user || user.role !== 'SUPER_ADMIN') return;
     const load = async () => {
       setLoading(true);
+      setMsg('');
       try {
-        const [statsRes, unisRes, usersRes, countriesRes] = await Promise.all([
-          fetch(`${API}/api/admin/stats`, { headers }),
-          fetch(`${API}/api/admin/universities`, { headers }),
-          fetch(`${API}/api/admin/users`, { headers }),
-          fetch(`${API}/api/universities/search`, { headers }).then(r => r.json()).then(data => {
-            // Distinct list of countries from search
-            const unique = Array.from(new Set(data.map((u: any) => JSON.stringify(u.country)))).map((s: any) => JSON.parse(s));
-            return unique;
-          })
-        ]);
-        if (statsRes.ok) setStats(await statsRes.json());
-        if (unisRes.ok) setUnis(await unisRes.json());
-        if (usersRes.ok) setUsers(await usersRes.json());
-        setCountries(countriesRes as Country[]);
-      } catch {}
+        console.log("Fetching admin data...");
+        const resStats = await fetch(`${API}/api/admin/stats`, { headers });
+        if (resStats.ok) setStats(await resStats.json());
+        else console.error("Stats fetch failed", resStats.status);
+
+        const resUnis = await fetch(`${API}/api/admin/universities`, { headers });
+        if (resUnis.ok) setUnis(await resUnis.json());
+        else console.error("Unis fetch failed", resUnis.status);
+
+        const resUsers = await fetch(`${API}/api/admin/users`, { headers });
+        if (resUsers.ok) setUsers(await resUsers.json());
+        else console.error("Users fetch failed", resUsers.status);
+
+        const resSearch = await fetch(`${API}/api/universities/search`, { headers });
+        if (resSearch.ok) {
+          const data = await resSearch.json();
+          const unique = Array.from(new Set(data.map((u: any) => JSON.stringify(u.country)))).map((s: any) => JSON.parse(s));
+          setCountries(unique as Country[]);
+        }
+      } catch (err: any) {
+        console.error("Dashboard load error:", err);
+        setMsg(`Error loading dashboard: ${err.message}`);
+      }
       setLoading(false);
     };
     load();
