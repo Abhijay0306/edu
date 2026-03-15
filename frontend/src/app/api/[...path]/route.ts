@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Runtime proxy: forwards all /api/* requests to the Express backend
-// Runs at request-time, so BACKEND_URL is always fresh
-const BACKEND = process.env.BACKEND_URL?.replace(/\/$/, '') || 'http://localhost:5000';
+const BACKEND = (process.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-async function handler(req: NextRequest, { params }: { params: { path: string[] } }) {
-  const path = params.path.join('/');
-  const targetUrl = `${BACKEND}/api/${path}${req.nextUrl.search}`;
+type RouteContext = { params: Promise<{ path: string[] }> };
+
+async function handler(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  const pathStr = path.join('/');
+  const targetUrl = `${BACKEND}/api/${pathStr}${req.nextUrl.search}`;
 
   const headers = new Headers();
   req.headers.forEach((value, key) => {
-    // Don't forward host header - let fetch set it for the target
     if (!['host', 'connection'].includes(key.toLowerCase())) {
       headers.set(key, value);
     }
   });
 
-  const body = req.method !== 'GET' && req.method !== 'HEAD' ? await req.arrayBuffer() : undefined;
+  const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+  const body = hasBody ? await req.arrayBuffer() : undefined;
 
   const backendRes = await fetch(targetUrl, {
     method: req.method,
