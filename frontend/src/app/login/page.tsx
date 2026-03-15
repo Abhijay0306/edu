@@ -27,9 +27,10 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Login failed'); return; }
       login(data.token, data.user);
+      setLoading(false);
       router.push('/dashboard');
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (err: any) {
+      setError(`Network error: ${err.message || 'Check your API URL and internet connection.'}`);
     } finally {
       setLoading(false);
     }
